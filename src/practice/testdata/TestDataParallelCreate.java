@@ -1,5 +1,8 @@
 package practice.testdata;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -29,16 +32,26 @@ public class TestDataParallelCreate {
         final String extension = ".csv";
         // int primary_key = 1;
 
+        // タスクリスト
+        List<Callable<Void>> tasks = new ArrayList<>();
+
+        // スレッドプールを作成（枝番ごとに1スレッド）
         ExecutorService exec = Executors.newFixedThreadPool(finalFileBranchNumber);
         for (; fileBranchNumber <= finalFileBranchNumber; fileBranchNumber++) {
-            exec.submit(new TestDataCreateThread(folder, nameOfOutputFileName, extension, fileBranchNumber, number));
-            System.out.println("スレッド呼び出し終わり");
+            tasks.add(new TestDataCreateThread(folder, nameOfOutputFileName, extension, fileBranchNumber, number));
         }
 
-        exec.shutdown();
+        try {
+            // すべてのタスクを実行し、完了まで待機
+            exec.invokeAll(tasks);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } finally {
+            exec.shutdown();
+        }
 
-        // System.out.println("処理終了");
-        // long endTime = System.currentTimeMillis();
-        // System.out.println("処理時間：" + (endTime - startTime) + " ms");
+        System.out.println("処理終了");
+        long endTime = System.currentTimeMillis();
+        System.out.println("処理時間：" + (endTime - startTime) + " ms");
     }
 }

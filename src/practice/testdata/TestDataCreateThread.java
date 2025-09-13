@@ -8,7 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.concurrent.Callable;
 
-public class TestDataCreateThread implements Runnable {
+public class TestDataCreateThread implements Callable<Void> {
 
     String folder;
     String nameOfOutputFileName;
@@ -26,7 +26,7 @@ public class TestDataCreateThread implements Runnable {
     }
 
     @Override
-    public void run() {
+    public Void call() {
         // スレッドIDを出力する
         System.out.println(Thread.currentThread().getId());
 
@@ -79,5 +79,6 @@ public class TestDataCreateThread implements Runnable {
             } finally {
             
             }
+        return null;
     }
 }
