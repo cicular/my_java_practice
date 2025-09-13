@@ -1,4 +1,4 @@
-package practice;
+package practice.testdata;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -15,13 +15,13 @@ public class TestDataCreate {
         long startTime = System.currentTimeMillis();
 
         //★★★出力先のフォルダを指定してください★★★
-        String folder = "C:\\Users\\foo\\foo\\foo\\";
+        String folder = "C:\\Users\\circu\\PycharmProjects\\myJavaPractice\\";
 
         //★★★作成するファイル名を指定してください★★★
         String nameOfOutputFileName = "testdata";
 
         //★★★1ファイルあたりの作成行数を指定してください★★★
-        int number = 500000;
+        int number = 5000000;
 
         //★★★最初の出力ファイルの枝番を指定してください★★★
         int FileBranchNumber = 1;
