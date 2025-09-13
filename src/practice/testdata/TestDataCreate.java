@@ -12,29 +12,30 @@ public class TestDataCreate {
     public static void main(String[] args) {
 
         System.out.println("処理開始");
-        long startTime = System.currentTimeMillis();
+        final long startTime = System.currentTimeMillis();
 
         //★★★出力先のフォルダを指定してください★★★
-        String folder = "C:\\Users\\circu\\PycharmProjects\\myJavaPractice\\";
+        final String folder = "C:\\Users\\circu\\PycharmProjects\\myJavaPractice\\";
 
         //★★★作成するファイル名を指定してください★★★
-        String nameOfOutputFileName = "testdata";
+        final String nameOfOutputFileName = "testdata";
 
         //★★★1ファイルあたりの作成行数を指定してください★★★
-        int number = 5000000;
+        final int number = 5000000;
 
         //★★★最初の出力ファイルの枝番を指定してください★★★
-        int FileBranchNumber = 1;
+        int fileBranchNumber = 1;
 
         //★★★最後の出力ファイルの枝番を指定してください★★★
-        int finalFileBranchNumber = 20;
+        int finalFileBranchNumber = 30;
 
-        String extension = ".csv";
+        // ファイル拡張子
+        final String extension = ".csv";
         int primary_key = 1;
 
-        for (; FileBranchNumber <= finalFileBranchNumber; FileBranchNumber++) {
+        for (; fileBranchNumber <= finalFileBranchNumber; fileBranchNumber++) {
 
-            String fileName = folder + nameOfOutputFileName +"_" + String.valueOf(FileBranchNumber) + extension;
+            String fileName = folder + nameOfOutputFileName +"_" + String.valueOf(fileBranchNumber) + extension;
             File file = new File(fileName);
 
             if(Files.exists(Paths.get(fileName))){
