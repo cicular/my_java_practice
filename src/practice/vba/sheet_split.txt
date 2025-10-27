@@ -1,0 +1,160 @@
+Option Explicit
+
+Public Sub 分割保存_全シートを別ファイルに()
+    Dim dlg As FileDialog
+    Dim srcPath As String
+    Dim wbSrc As Workbook
+    Dim ws As Worksheet
+    Dim appCalc As XlCalculation
+    Dim oldScrUpd As Boolean, oldDispAlerts As Boolean, oldEvents As Boolean
+    
+    On Error GoTo ERR_HANDLER
+    
+    '--- ① ファイルAを選択 ---
+    Set dlg = Application.FileDialog(msoFileDialogFilePicker)
+    With dlg
+        .Title = "分割元となるファイルAを選択してください"
+        .Filters.Clear
+        .Filters.Add "Excel ブック", "*.xlsx;*.xlsm;*.xlsb;*.xls"
+        .AllowMultiSelect = False
+        If .Show <> -1 Then Exit Sub
+        srcPath = .SelectedItems(1)
+    End With
+    
+    '--- ② 実行前の状態を保存＆高速化設定 ---
+    oldScrUpd = Application.ScreenUpdating
+    oldDispAlerts = Application.DisplayAlerts
+    oldEvents = Application.EnableEvents
+    appCalc = Application.Calculation
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+    Application.EnableEvents = False
+    Application.Calculation = xlCalculationManual
+    
+    '--- ③ ファイルAを読み取り専用で開く ---
+    Set wbSrc = Workbooks.Open(Filename:=srcPath, ReadOnly:=True)
+    
+    '--- ④ 全ワークシートをループ ---
+    Dim namePart As String
+    Dim saveDir As String
+    saveDir = wbSrc.Path
+    
+    For Each ws In wbSrc.Worksheets
+        ' ① C5（必要ならC3へ変更） の値を取得（ブランクやエラー対応）
+        namePart = ""
+        On Error Resume Next
+        namePart = CStr(ws.Range("C5").Value) ' ←C3にしたい場合は "C3" に変更
+        On Error GoTo ERR_HANDLER
+        
+        namePart = Trim$(namePart)
+        If Len(namePart) = 0 Then
+            ' 空ならシート名で補完
+            namePart = ws.Name
+        End If
+        
+        ' ファイル名に使えない文字を安全に置換
+        namePart = SanitizeFileName(namePart)
+        If Len(namePart) = 0 Then
+            namePart = "未命名"
+        End If
+        
+        ' ② シートを新規ブックへコピー（この操作で単一シートの新規ブックができる）
+        ws.Copy
+        Dim wbNew As Workbook
+        Set wbNew = ActiveWorkbook
+        
+        ' --- ここでシート名を「一覧表」に固定 ---
+        On Error Resume Next
+        With wbNew.Worksheets(1)
+            If .Name <> "一覧表" Then .Name = "一覧表"
+        End With
+        On Error GoTo ERR_HANDLER
+        
+        ' ③ 保存パスを作成（衝突時は連番付与）
+        Dim savePath As String
+        savePath = BuildUniquePath(saveDir, "分割ファイル" & namePart & ".xlsx")
+        
+        ' xlsxで保存
+        wbNew.SaveAs Filename:=savePath, FileFormat:=xlOpenXMLWorkbook
+        ' 保存後クローズ（変更保存なし）
+        wbNew.Close SaveChanges:=False
+    Next ws
+    
+    '--- ⑤ ファイルAを保存せずに閉じる ---
+    wbSrc.Close SaveChanges:=False
+
+CLEANUP:
+    '--- ⑥ 設定を元に戻す ---
+    Application.ScreenUpdating = oldScrUpd
+    Application.DisplayAlerts = oldDispAlerts
+    Application.EnableEvents = oldEvents
+    Application.Calculation = appCalc
+    Exit Sub
+
+ERR_HANDLER:
+    ' 予期せぬエラーでも元ブックは閉じる（開けていれば）
+    On Error Resume Next
+    If Not wbSrc Is Nothing Then
+        wbSrc.Close SaveChanges:=False
+    End If
+    On Error GoTo 0
+    MsgBox "エラーが発生しました: " & Err.Number & vbCrLf & Err.Description, vbExclamation, "分割保存"
+    Resume CLEANUP
+End Sub
+
+'==============================
+' ファイル名に使えない文字を置換
+'==============================
+Private Function SanitizeFileName(ByVal s As String) As String
+    Dim badChars As Variant
+    Dim ch As Variant
+    badChars = Array("\", "/", ":", "*", "?", """", "<", ">", "|")
+    For Each ch In badChars
+        s = Replace$(s, CStr(ch), "_")
+    Next ch
+    ' 先頭末尾のドット/スペースを除去（Windowsの制約対策）
+    Do While Len(s) > 0 And (Right$(s, 1) = "." Or Right$(s, 1) = " ")
+        s = Left$(s, Len(s) - 1)
+    Loop
+    Do While Len(s) > 0 And (Left$(s, 1) = "." Or Left$(s, 1) = " ")
+        s = Mid$(s, 2)
+    Loop
+    ' 長すぎる場合は適度に切り詰め（ここでは100文字に制限）
+    If Len(s) > 100 Then s = Left$(s, 100)
+    SanitizeFileName = s
+End Function
+
+'=====================================
+' 衝突回避の一意パスを作成
+'=====================================
+Private Function BuildUniquePath(ByVal dirPath As String, ByVal fileName As String) As String
+    Dim baseName As String, ext As String, p As Long
+    Dim cand As String, i As Long
+    
+    p = InStrRev(fileName, ".")
+    If p > 0 Then
+        baseName = Left$(fileName, p - 1)
+        ext = Mid$(fileName, p)   ' 例: ".xlsx"
+    Else
+        baseName = fileName
+        ext = ""
+    End If
+    
+    cand = dirPath & Application.PathSeparator & baseName & ext
+    If Dir$(cand, vbNormal) = "" Then
+        BuildUniquePath = cand
+        Exit Function
+    End If
+    
+    For i = 1 To 9999
+        cand = dirPath & Application.PathSeparator & baseName & "(" & CStr(i) & ")" & ext
+        If Dir$(cand, vbNormal) = "" Then
+            BuildUniquePath = cand
+            Exit Function
+        End If
+    Next i
+    
+    ' 非常時の最後の手段：タイムスタンプ付与
+    cand = dirPath & Application.PathSeparator & baseName & "(" & Format(Now, "yyyymmdd_HHNNSS") & ")" & ext
+    BuildUniquePath = cand
+End Function
