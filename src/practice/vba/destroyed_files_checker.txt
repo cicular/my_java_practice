@@ -1,0 +1,107 @@
+Option Explicit
+
+' メイン処理
+Public Sub ValidateExcelFilesInFolder()
+    Dim rootPath As String
+    Dim fso As Object    ' Scripting.FileSystemObject
+    Dim logPath As String
+    Dim fnum As Integer
+    
+    ' ▼ 検査対象フォルダをダイアログで選択（固定値にしたければここを書き換え）
+    With Application.FileDialog(msoFileDialogFolderPicker)
+        .Title = "検証対象のフォルダを選択してください"
+        .AllowMultiSelect = False
+        If .Show <> -1 Then
+            MsgBox "フォルダが選択されませんでした。処理を終了します。", vbInformation
+            Exit Sub
+        End If
+        rootPath = .SelectedItems(1)
+    End With
+    
+    If Len(rootPath) = 0 Then Exit Sub
+    
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    
+    ' ログファイルパス（対象フォルダ直下に destroy_validate.txt を作成）
+    logPath = fso.BuildPath(rootPath, "destroy_validate.txt")
+    
+    ' 既存ログを上書き初期化
+    fnum = FreeFile
+    Open logPath For Output As #fnum
+    Print #fnum, "破損などにより開けなかった Excel ファイル一覧"
+    Print #fnum, "対象フォルダ: " & rootPath
+    Print #fnum, "実行日時    : " & Now
+    Print #fnum, String(40, "-")
+    Close #fnum
+    
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+    
+    ' 再帰的に走査
+    TraverseFolder fso.GetFolder(rootPath), logPath, fso
+    
+    Application.DisplayAlerts = True
+    Application.ScreenUpdating = True
+    
+    MsgBox "検証が完了しました。" & vbCrLf & _
+           "ログファイル: " & logPath, vbInformation
+End Sub
+
+' フォルダを再帰的に走査
+Private Sub TraverseFolder(ByVal targetFolder As Object, _
+                           ByVal logPath As String, _
+                           ByVal fso As Object)
+    Dim fil As Object
+    Dim subFolder As Object
+    
+    ' ファイルをループ
+    For Each fil In targetFolder.Files
+        If IsXlsxFile(fil) Then
+            ValidateOneExcelFile CStr(fil.Path), logPath
+        End If
+    Next fil
+    
+    ' サブフォルダを再帰処理
+    For Each subFolder In targetFolder.SubFolders
+        TraverseFolder subFolder, logPath, fso
+    Next subFolder
+End Sub
+
+' 拡張子が .xlsx かどうか判定
+Private Function IsXlsxFile(ByVal fil As Object) As Boolean
+    Dim nameLower As String
+    nameLower = LCase$(fil.Name)
+    IsXlsxFile = (Right$(nameLower, 5) = ".xlsx")
+End Function
+
+' 1 ファイルごとの検証処理
+'   開けなかった場合、そのパスを logPath に追記
+Private Sub ValidateOneExcelFile(ByVal filePath As String, _
+                                 ByVal logPath As String)
+    Dim wb As Workbook
+    Dim fnum As Integer
+    
+    On Error GoTo ErrHandler
+    
+    ' 実際に Excel で開いてみる
+    Set wb = Workbooks.Open(Filename:=filePath, ReadOnly:=True)
+    
+    ' 正常に開けたら閉じる
+    wb.Close SaveChanges:=False
+    Set wb = Nothing
+    
+    Exit Sub
+
+ErrHandler:
+    ' 開けなかったファイルのパスをログに追記
+    fnum = FreeFile
+    Open logPath For Append As #fnum
+    Print #fnum, filePath
+    Close #fnum
+    
+    ' エラー情報をデバッグ用にイミディエイトに出力（任意）
+    Debug.Print "Open failed: "; filePath; " // "; Err.Number; " : "; Err.Description
+    
+    Err.Clear
+    On Error GoTo 0
+End Sub
